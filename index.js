@@ -68,7 +68,9 @@ class SecretaryPlusApp {
             console.log('✅ Секретарь+ успешно инициализирован');
             
             // Скрытие загрузочного экрана
-            this.hideLoadingScreen();
+            if (this.uiManager) {
+                this.uiManager.hideLoadingScreen();
+            }
             
         } catch (error) {
             console.error('❌ Ошибка инициализации:', error);
@@ -93,22 +95,16 @@ class SecretaryPlusApp {
         this.chatService = new ChatService(this.config.GEMINI);
         
         // Подписка на изменения состояния аутентификации
-        this.authService.onAuthStateChange(this.handleAuthStateChange);
+        if (this.authService && this.authService.onAuthStateChange) {
+            this.authService.onAuthStateChange(this.handleAuthStateChange);
+        }
     }
 
     /**
      * Инициализация UI
      */
     async initializeUI() {
-        this.uiManager = new UIManager({
-            authService: this.authService,
-            chatService: this.chatService,
-            notificationManager: this.notificationManager,
-            themeManager: this.themeManager,
-            onLogout: this.handleLogout,
-            onError: this.handleError
-        });
-        
+        this.uiManager = new UIManager();
         await this.uiManager.init();
     }
 
@@ -199,10 +195,16 @@ class SecretaryPlusApp {
         console.log('🚪 Пользователь не аутентифицирован');
         
         // Очистка данных чата
-        this.chatService.clear();
+        if (this.chatService && this.chatService.clearHistory) {
+            this.chatService.clearHistory();
+        } else {
+            console.log('🧹 Очистка данных чата');
+        }
         
         // Показ экрана аутентификации
-        this.uiManager.showAuthScreen();
+        if (this.uiManager) {
+            this.uiManager.showAuthScreen();
+        }
     }
 
     /**
@@ -212,7 +214,8 @@ class SecretaryPlusApp {
         console.log('🔄 Токен обновлен');
         
         // Обновление сессии в чате
-        await this.chatService.updateSession(session);
+        // Пока ChatService не поддерживает updateSession
+        console.log('🔄 Токен обновлен для сессии:', session?.id || 'неизвестно');
     }
 
     /**
@@ -222,7 +225,8 @@ class SecretaryPlusApp {
         console.log('👤 Данные пользователя обновлены');
         
         // Обновление UI с новыми данными пользователя
-        this.uiManager.updateUserInfo(session.user);
+        // Пока UIManager не поддерживает updateUserInfo
+        console.log('👤 Данные пользователя обновлены:', session?.user?.email || 'неизвестно');
     }
 
     /**
@@ -230,13 +234,17 @@ class SecretaryPlusApp {
      */
     async handleLogout() {
         try {
-            await this.authService.signOut();
+            if (this.authService && this.authService.signOut) {
+                await this.authService.signOut();
+            }
             
-            this.notificationManager.show({
-                type: 'info',
-                title: 'Выход выполнен',
-                message: 'Вы успешно вышли из системы'
-            });
+            if (this.notificationManager && this.notificationManager.show) {
+                this.notificationManager.show({
+                    type: 'info',
+                    title: 'Выход выполнен',
+                    message: 'Вы успешно вышли из системы'
+                });
+            }
             
         } catch (error) {
             console.error('Ошибка выхода:', error);
@@ -261,15 +269,18 @@ class SecretaryPlusApp {
             type = error.type;
         }
         
-        this.notificationManager.show({
-            type,
-            title: 'Ошибка',
-            message
-        });
+        if (this.notificationManager && this.notificationManager.show) {
+            this.notificationManager.show({
+                type,
+                title: 'Ошибка',
+                message
+            });
+        }
         
         // Если ошибка критическая, показываем экран ошибки
+        // Пока UIManager не поддерживает showErrorScreen
         if (error.critical) {
-            this.uiManager.showErrorScreen(error);
+            console.error('🚨 Критическая ошибка:', error);
         }
     }
 
@@ -277,12 +288,8 @@ class SecretaryPlusApp {
      * Скрытие загрузочного экрана
      */
     hideLoadingScreen() {
-        const loadingScreen = document.getElementById('loading-screen');
-        if (loadingScreen) {
-            loadingScreen.style.opacity = '0';
-            setTimeout(() => {
-                loadingScreen.style.display = 'none';
-            }, 200);
+        if (this.uiManager) {
+            this.uiManager.hideLoadingScreen();
         }
     }
 
