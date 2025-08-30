@@ -1,0 +1,69 @@
+# Зависимости
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Файлы окружения
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Логи
+logs
+*.log
+
+# Временные файлы
+.tmp/
+.temp/
+*.tmp
+*.temp
+
+# Кэш
+.cache/
+.parcel-cache/
+
+# IDE и редакторы
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Операционные системы
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Сборка
+dist/
+build/
+out/
+
+# Тесты
+coverage/
+.nyc_output/
+
+# Документация
+docs/
+
+# Резервные копии
+*.bak
+*.backup
+
+# Конфигурационные файлы с секретами
+config.local.js
+secrets.json
+
+# Файлы загрузки
+uploads/
+downloads/
+
+# Локальные настройки
+.local/ 

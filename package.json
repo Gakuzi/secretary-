@@ -1,0 +1,59 @@
+{
+  "name": "secretary-plus",
+  "version": "1.0.0",
+  "description": "Интеллектуальный веб-ассистент для управления цифровой продуктивностью с интеграцией Google сервисов и использованием AI модели Gemini",
+  "main": "index.js",
+  "type": "module",
+  "scripts": {
+    "start": "npx http-server -p 3000 -c-1",
+    "dev": "npx http-server -p 3000 -c-1 --cors",
+    "build": "echo 'No build step required for vanilla JS'",
+    "test": "echo 'No tests specified'",
+    "lint": "echo 'No linter configured'",
+    "format": "echo 'No formatter configured'",
+    "deploy": "echo 'Deploy to your preferred hosting service'"
+  },
+  "keywords": [
+    "ai",
+    "assistant",
+    "productivity",
+    "google",
+    "gemini",
+    "supabase",
+    "chat",
+    "calendar",
+    "tasks",
+    "email",
+    "voice",
+    "multimodal"
+  ],
+  "author": "Your Name",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/yourusername/secretary-plus.git"
+  },
+  "bugs": {
+    "url": "https://github.com/yourusername/secretary-plus/issues"
+  },
+  "homepage": "https://github.com/yourusername/secretary-plus#readme",
+  "engines": {
+    "node": ">=16.0.0"
+  },
+  "devDependencies": {
+    "http-server": "^14.1.1"
+  },
+  "dependencies": {
+    "@google/generative-ai": "^0.21.0",
+    "@supabase/supabase-js": "^2.39.0"
+  },
+  "browserslist": [
+    "> 1%",
+    "last 2 versions",
+    "not dead",
+    "not ie 11"
+  ],
+  "config": {
+    "unsafe-perm": true
+  }
+} 
