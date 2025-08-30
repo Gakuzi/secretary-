@@ -5,6 +5,10 @@
 
 import { UIManager } from './components/UIManager.js';
 import { ChatService } from './services/ChatService.js';
+import { AuthService } from './services/AuthService.js';
+import { GeminiService } from './services/GeminiService.js';
+import { GoogleCalendarService } from './services/GoogleCalendarService.js';
+import { GmailService } from './services/GmailService.js';
 
 /**
  * Главный класс приложения
@@ -13,13 +17,22 @@ class SecretaryPlusApp {
     constructor() {
         this.uiManager = null;
         this.chatService = null;
+        this.authService = null;
+        this.geminiService = null;
+        this.calendarService = null;
+        this.gmailService = null;
         this.isInitialized = false;
         
         // Состояние приложения
         this.state = {
             isAuthenticated: false,
             currentUser: null,
-            currentTheme: 'dark'
+            currentTheme: 'dark',
+            services: {
+                gemini: false,
+                calendar: false,
+                gmail: false
+            }
         };
     }
 
@@ -60,6 +73,42 @@ class SecretaryPlusApp {
     async initializeServices() {
         console.log('🔧 Инициализация сервисов...');
         
+        // Инициализируем AuthService
+        this.authService = new AuthService();
+        await this.authService.init();
+        
+        // Инициализируем GeminiService если есть API ключ
+        const geminiApiKey = localStorage.getItem('gemini-api-key');
+        if (geminiApiKey) {
+            try {
+                this.geminiService = new GeminiService(geminiApiKey);
+                await this.geminiService.init();
+                this.state.services.gemini = true;
+                console.log('✅ Gemini AI подключен');
+            } catch (error) {
+                console.warn('⚠️ Не удалось инициализировать Gemini AI:', error);
+            }
+        }
+        
+        // Инициализируем Google сервисы
+        try {
+            this.calendarService = new GoogleCalendarService();
+            await this.calendarService.init();
+            this.state.services.calendar = true;
+            console.log('✅ Google Calendar подключен');
+        } catch (error) {
+            console.warn('⚠️ Не удалось инициализировать Google Calendar:', error);
+        }
+        
+        try {
+            this.gmailService = new GmailService();
+            await this.gmailService.init();
+            this.state.services.gmail = true;
+            console.log('✅ Gmail подключен');
+        } catch (error) {
+            console.warn('⚠️ Не удалось инициализировать Gmail:', error);
+        }
+        
         // Инициализируем ChatService
         this.chatService = new ChatService();
         await this.chatService.init();
@@ -77,6 +126,9 @@ class SecretaryPlusApp {
         this.uiManager = new UIManager();
         await this.uiManager.init();
         
+        // Устанавливаем ChatService в UIManager
+        this.uiManager.setChatService(this.chatService);
+        
         console.log('✅ UI инициализирован');
     }
 
@@ -86,14 +138,52 @@ class SecretaryPlusApp {
     async checkAuthentication() {
         console.log('🔐 Проверка аутентификации...');
         
-        // TODO: Реализовать проверку Google аутентификации
-        // Пока показываем экран аутентификации
-        
-        if (this.uiManager) {
-            this.uiManager.showAuthScreen();
+        if (this.authService && this.authService.isAuthenticated()) {
+            this.state.isAuthenticated = true;
+            this.state.currentUser = this.authService.getCurrentUser();
+            
+            // Обновляем состояние сервисов
+            await this.updateServicesState();
+            
+            // Показываем основное приложение
+            if (this.uiManager) {
+                this.uiManager.showApp();
+                this.uiManager.updateUserInterface();
+            }
+        } else {
+            // Показываем экран аутентификации
+            if (this.uiManager) {
+                this.uiManager.showAuthScreen();
+            }
         }
         
         console.log('✅ Проверка аутентификации завершена');
+    }
+
+    /**
+     * Обновление состояния сервисов
+     */
+    async updateServicesState() {
+        try {
+            // Проверяем Gemini AI
+            if (this.geminiService && this.geminiService.isReady()) {
+                this.state.services.gemini = true;
+            }
+            
+            // Проверяем Google сервисы
+            if (this.calendarService && this.calendarService.isReady()) {
+                this.state.services.calendar = true;
+            }
+            
+            if (this.gmailService && this.gmailService.isReady()) {
+                this.state.services.gmail = true;
+            }
+            
+            console.log('✅ Состояние сервисов обновлено:', this.state.services);
+            
+        } catch (error) {
+            console.error('❌ Ошибка обновления состояния сервисов:', error);
+        }
     }
 
     /**
@@ -150,10 +240,14 @@ class SecretaryPlusApp {
             this.state.isAuthenticated = true;
             this.state.currentUser = user;
             
+            // Обновляем состояние сервисов
+            await this.updateServicesState();
+            
             // Скрываем экран аутентификации
             if (this.uiManager) {
                 this.uiManager.hideAuthScreen();
                 this.uiManager.showApp();
+                this.uiManager.updateUserInterface();
             }
             
             // Показываем приветственное сообщение
@@ -179,7 +273,26 @@ class SecretaryPlusApp {
                     </div>
                     <h3 class="text-2xl font-semibold mb-2">Добро пожаловать, ${this.state.currentUser?.name || 'пользователь'}!</h3>
                     <p class="text-blue-200 mb-4">Я - ваш AI-помощник Секретарь+</p>
-                    <p class="text-blue-300 text-sm">Начните разговор или используйте кнопки выше для различных функций</p>
+                    <p class="text-blue-300 text-sm">Доступные сервисы:</p>
+                    <div class="grid grid-cols-2 gap-4 mt-4 text-left max-w-md mx-auto">
+                        <div class="flex items-center space-x-2">
+                            <div class="w-3 h-3 ${this.state.services.gemini ? 'bg-green-500' : 'bg-gray-400'} rounded-full"></div>
+                            <span class="text-sm">Gemini AI</span>
+                        </div>
+                        <div class="flex items-center space-x-2">
+                            <div class="w-3 h-3 ${this.state.services.calendar ? 'bg-green-500' : 'bg-gray-400'} rounded-full"></div>
+                            <span class="text-sm">Google Calendar</span>
+                        </div>
+                        <div class="flex items-center space-x-2">
+                            <div class="w-3 h-3 ${this.state.services.gmail ? 'bg-green-500' : 'bg-gray-400'} rounded-full"></div>
+                            <span class="text-sm">Gmail</span>
+                        </div>
+                        <div class="flex items-center space-x-2">
+                            <div class="w-3 h-3 bg-green-500 rounded-full"></div>
+                            <span class="text-sm">Чат</span>
+                        </div>
+                    </div>
+                    <p class="text-blue-300 text-sm mt-4">Начните разговор или используйте кнопки выше для различных функций</p>
                 </div>
             `;
             
@@ -206,6 +319,11 @@ class SecretaryPlusApp {
             // Сбрасываем состояние
             this.state.isAuthenticated = false;
             this.state.currentUser = null;
+            this.state.services = {
+                gemini: false,
+                calendar: false,
+                gmail: false
+            };
             
             // Очищаем историю чата
             if (this.chatService) {
@@ -234,8 +352,10 @@ class SecretaryPlusApp {
             isAuthenticated: this.state.isAuthenticated,
             currentUser: this.state.currentUser,
             currentTheme: this.state.currentTheme,
+            services: this.state.services,
             chatService: this.chatService ? this.chatService.getStatistics() : null,
-            uiManager: this.uiManager ? this.uiManager.isReady() : false
+            uiManager: this.uiManager ? this.uiManager.isReady() : false,
+            authService: this.authService ? this.authService.getAuthStats() : null
         };
         
         return stats;
@@ -274,15 +394,77 @@ class SecretaryPlusApp {
             version: '1.0.0',
             description: 'Интеллектуальный веб-ассистент для управления продуктивностью',
             developer: 'Климов Евгений',
-            technologies: ['Vanilla JavaScript', 'Tailwind CSS', 'Google Gemini AI', 'Supabase'],
+            technologies: ['Vanilla JavaScript', 'Tailwind CSS', 'Google Gemini AI', 'Google APIs'],
             features: [
                 'Управление календарями',
                 'Анализ почты',
                 'Поиск по контактам',
                 'Работа с документами',
                 'AI-помощник'
-            ]
+            ],
+            services: this.state.services
         };
+    }
+
+    /**
+     * Настройка API ключей
+     */
+    configureAPIKeys(geminiApiKey = null, googleClientId = null) {
+        let updated = false;
+        
+        if (geminiApiKey) {
+            localStorage.setItem('gemini-api-key', geminiApiKey);
+            updated = true;
+        }
+        
+        if (googleClientId) {
+            localStorage.setItem('google-client-id', googleClientId);
+            if (this.authService) {
+                this.authService.configureGoogleOAuth(googleClientId);
+            }
+            updated = true;
+        }
+        
+        if (updated) {
+            this.showNotification('API ключи обновлены. Перезагрузите страницу для применения изменений.', 'success');
+        }
+        
+        return updated;
+    }
+
+    /**
+     * Проверка состояния сервисов
+     */
+    async checkServicesHealth() {
+        const health = {
+            gemini: false,
+            calendar: false,
+            gmail: false,
+            auth: false
+        };
+        
+        try {
+            if (this.geminiService) {
+                health.gemini = this.geminiService.isReady();
+            }
+            
+            if (this.calendarService) {
+                health.calendar = this.calendarService.isReady();
+            }
+            
+            if (this.gmailService) {
+                health.gmail = this.gmailService.isReady();
+            }
+            
+            if (this.authService) {
+                health.auth = this.authService.isReady();
+            }
+            
+        } catch (error) {
+            console.error('❌ Ошибка проверки состояния сервисов:', error);
+        }
+        
+        return health;
     }
 }
 
@@ -307,6 +489,10 @@ document.addEventListener('DOMContentLoaded', async () => {
         window.app = app;
         
         console.log('🎉 Приложение Секретарь+ готово к работе!');
+        
+        // Показываем информацию о приложении в консоли
+        console.log('📊 Статистика приложения:', app.getAppStatistics());
+        console.log('ℹ️ Информация о приложении:', app.getAppInfo());
         
     } catch (error) {
         console.error('💥 Критическая ошибка при инициализации:', error);

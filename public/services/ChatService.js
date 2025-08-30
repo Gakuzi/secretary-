@@ -1,11 +1,28 @@
 /**
  * ChatService - Сервис для управления чатом и AI-взаимодействием
  */
+import { GeminiService } from './GeminiService.js';
+import { GoogleCalendarService } from './GoogleCalendarService.js';
+import { GmailService } from './GmailService.js';
+
 export class ChatService {
     constructor() {
         this.conversationHistory = [];
         this.isInitialized = false;
         this.currentConversationId = null;
+        
+        // Сервисы
+        this.geminiService = null;
+        this.calendarService = null;
+        this.gmailService = null;
+        
+        // Контекст разговора
+        this.context = {
+            lastEmail: null,
+            lastCalendarEvent: null,
+            userPreferences: {},
+            currentTask: null
+        };
     }
 
     /**
@@ -13,6 +30,17 @@ export class ChatService {
      */
     async init() {
         try {
+            // Инициализируем Gemini AI
+            const apiKey = localStorage.getItem('gemini-api-key');
+            if (apiKey) {
+                this.geminiService = new GeminiService(apiKey);
+                await this.geminiService.init();
+            }
+
+            // Инициализируем Google сервисы
+            this.calendarService = new GoogleCalendarService();
+            this.gmailService = new GmailService();
+            
             // Загружаем историю из localStorage
             this.loadConversationHistory();
             
@@ -21,6 +49,7 @@ export class ChatService {
             
             this.isInitialized = true;
             console.log('✅ ChatService инициализирован');
+            
         } catch (error) {
             console.error('❌ Ошибка инициализации ChatService:', error);
         }
@@ -47,14 +76,30 @@ export class ChatService {
             // Добавляем в историю
             this.addMessageToHistory(userMessage);
 
-            // Показываем индикатор загрузки
-            this.showTypingIndicator();
-
-            // Имитируем задержку AI-ответа
-            const aiResponse = await this.generateAIResponse(message, options);
-
-            // Скрываем индикатор загрузки
-            this.hideTypingIndicator();
+            // Анализируем сообщение и определяем тип запроса
+            const messageType = this.analyzeMessageType(message);
+            
+            // Обрабатываем сообщение в зависимости от типа
+            let aiResponse;
+            switch (messageType) {
+                case 'calendar':
+                    aiResponse = await this.handleCalendarRequest(message);
+                    break;
+                case 'email':
+                    aiResponse = await this.handleEmailRequest(message);
+                    break;
+                case 'task':
+                    aiResponse = await this.handleTaskRequest(message);
+                    break;
+                case 'contact':
+                    aiResponse = await this.handleContactRequest(message);
+                    break;
+                case 'document':
+                    aiResponse = await this.handleDocumentRequest(message);
+                    break;
+                default:
+                    aiResponse = await this.generateGeneralResponse(message);
+            }
 
             // Создаем объект сообщения AI
             const aiMessage = {
@@ -62,7 +107,8 @@ export class ChatService {
                 type: 'assistant',
                 content: aiResponse,
                 timestamp: new Date().toISOString(),
-                conversationId: this.currentConversationId
+                conversationId: this.currentConversationId,
+                messageType: messageType
             };
 
             // Добавляем в историю
@@ -75,31 +121,276 @@ export class ChatService {
 
         } catch (error) {
             console.error('❌ Ошибка отправки сообщения:', error);
-            this.hideTypingIndicator();
             throw error;
         }
     }
 
     /**
-     * Генерация AI-ответа
+     * Анализ типа сообщения
      */
-    async generateAIResponse(message, options = {}) {
-        // TODO: Интеграция с Google Gemini API
-        // Пока возвращаем тестовые ответы
+    analyzeMessageType(message) {
+        const lowerMessage = message.toLowerCase();
         
-        const responses = [
-            'Спасибо за ваше сообщение! Я - ваш AI-помощник Секретарь+. Как я могу вам помочь сегодня?',
-            'Интересный вопрос! Давайте разберем его подробнее. Что именно вас интересует?',
-            'Я понимаю ваш запрос. Позвольте мне помочь вам с этим вопросом.',
-            'Отличная идея! Я готов помочь вам реализовать задуманное.',
-            'Спасибо за обращение! Я работаю над улучшением своих возможностей.'
-        ];
+        // Календарь
+        if (lowerMessage.includes('календар') || lowerMessage.includes('встреч') || 
+            lowerMessage.includes('событие') || lowerMessage.includes('планир') ||
+            lowerMessage.includes('расписание') || lowerMessage.includes('время')) {
+            return 'calendar';
+        }
+        
+        // Email
+        if (lowerMessage.includes('почт') || lowerMessage.includes('email') || 
+            lowerMessage.includes('письм') || lowerMessage.includes('сообщени')) {
+            return 'email';
+        }
+        
+        // Задачи
+        if (lowerMessage.includes('задач') || lowerMessage.includes('дел') || 
+            lowerMessage.includes('планир') || lowerMessage.includes('проект')) {
+            return 'task';
+        }
+        
+        // Контакты
+        if (lowerMessage.includes('контакт') || lowerMessage.includes('человек') || 
+            lowerMessage.includes('коллег') || lowerMessage.includes('друг')) {
+            return 'contact';
+        }
+        
+        // Документы
+        if (lowerMessage.includes('документ') || lowerMessage.includes('файл') || 
+            lowerMessage.includes('анализ') || lowerMessage.includes('текст')) {
+            return 'document';
+        }
+        
+        return 'general';
+    }
 
-        // Имитируем задержку обработки
-        await this.delay(1000 + Math.random() * 2000);
+    /**
+     * Обработка запроса календаря
+     */
+    async handleCalendarRequest(message) {
+        try {
+            if (!this.geminiService || !this.geminiService.isReady()) {
+                return 'Для работы с календарем необходимо настроить Gemini AI. Пожалуйста, добавьте API ключ в настройках.';
+            }
 
-        // Возвращаем случайный ответ
-        return responses[Math.floor(Math.random() * responses.length)];
+            // Анализируем запрос через Gemini
+            const prompt = `Пользователь просит о календаре: "${message}". 
+                           Предоставь полезную информацию и рекомендации по управлению календарем.
+                           Если это запрос на создание события, предложи структуру события.`;
+
+            const response = await this.geminiService.generateResponse(prompt, { maxTokens: 400 });
+            
+            // Если это запрос на создание события, предлагаем форму
+            if (message.toLowerCase().includes('созда') || message.toLowerCase().includes('добав')) {
+                return response + '\n\nДля создания события используйте кнопку "Новое событие" в верхней панели.';
+            }
+
+            return response;
+
+        } catch (error) {
+            console.error('❌ Ошибка обработки запроса календаря:', error);
+            return 'Извините, произошла ошибка при обработке запроса календаря. Попробуйте позже.';
+        }
+    }
+
+    /**
+     * Обработка запроса email
+     */
+    async handleEmailRequest(message) {
+        try {
+            if (!this.geminiService || !this.geminiService.isReady()) {
+                return 'Для работы с почтой необходимо настроить Gemini AI. Пожалуйста, добавьте API ключ в настройках.';
+            }
+
+            const prompt = `Пользователь просит о почте: "${message}". 
+                           Предоставь полезную информацию и рекомендации по управлению почтой.
+                           Если это запрос на анализ письма, объясни как это сделать.`;
+
+            const response = await this.geminiService.generateResponse(prompt, { maxTokens: 400 });
+            
+            // Если это запрос на отправку письма, предлагаем форму
+            if (message.toLowerCase().includes('отправ') || message.toLowerCase().includes('написа')) {
+                return response + '\n\nДля отправки письма используйте кнопку "Новое письмо" в верхней панели.';
+            }
+
+            return response;
+
+        } catch (error) {
+            console.error('❌ Ошибка обработки запроса email:', error);
+            return 'Извините, произошла ошибка при обработке запроса почты. Попробуйте позже.';
+        }
+    }
+
+    /**
+     * Обработка запроса задач
+     */
+    async handleTaskRequest(message) {
+        try {
+            if (!this.geminiService || !this.geminiService.isReady()) {
+                return 'Для планирования задач необходимо настроить Gemini AI. Пожалуйста, добавьте API ключ в настройках.';
+            }
+
+            const prompt = `Пользователь просит о планировании задач: "${message}". 
+                           Предоставь структурированный план с разбивкой на подзадачи,
+                           оценкой времени и рекомендациями по приоритизации.`;
+
+            return await this.geminiService.generateResponse(prompt, { maxTokens: 600 });
+
+        } catch (error) {
+            console.error('❌ Ошибка обработки запроса задач:', error);
+            return 'Извините, произошла ошибка при планировании задач. Попробуйте позже.';
+        }
+    }
+
+    /**
+     * Обработка запроса контактов
+     */
+    async handleContactRequest(message) {
+        try {
+            if (!this.geminiService || !this.geminiService.isReady()) {
+                return 'Для работы с контактами необходимо настроить Gemini AI. Пожалуйста, добавьте API ключ в настройках.';
+            }
+
+            const prompt = `Пользователь просит о контактах: "${message}". 
+                           Предоставь рекомендации по управлению контактами,
+                           поиску и организации информации о людях.`;
+
+            return await this.geminiService.generateResponse(prompt, { maxTokens: 400 });
+
+        } catch (error) {
+            console.error('❌ Ошибка обработки запроса контактов:', error);
+            return 'Извините, произошла ошибка при работе с контактами. Попробуйте позже.';
+        }
+    }
+
+    /**
+     * Обработка запроса документов
+     */
+    async handleDocumentRequest(message) {
+        try {
+            if (!this.geminiService || !this.geminiService.isReady()) {
+                return 'Для анализа документов необходимо настроить Gemini AI. Пожалуйста, добавьте API ключ в настройках.';
+            }
+
+            const prompt = `Пользователь просит о документах: "${message}". 
+                           Предоставь рекомендации по анализу документов,
+                           извлечению ключевой информации и организации файлов.`;
+
+            return await this.geminiService.generateResponse(prompt, { maxTokens: 400 });
+
+        } catch (error) {
+            console.error('❌ Ошибка обработки запроса документов:', error);
+            return 'Извините, произошла ошибка при работе с документами. Попробуйте позже.';
+        }
+    }
+
+    /**
+     * Генерация общего ответа
+     */
+    async generateGeneralResponse(message) {
+        try {
+            if (!this.geminiService || !this.geminiService.isReady()) {
+                return 'Привет! Я ваш AI-помощник Секретарь+. Для полноценной работы необходимо настроить Gemini AI в настройках. Чем могу помочь?';
+            }
+
+            const prompt = `Ты - Секретарь+, интеллектуальный помощник для управления продуктивностью.
+                           Пользователь написал: "${message}"
+                           
+                           Ответь полезно и по делу, предложи конкретные действия если это уместно.
+                           Фокус на продуктивности, организации и эффективности.`;
+
+            return await this.geminiService.generateResponse(prompt, { maxTokens: 500 });
+
+        } catch (error) {
+            console.error('❌ Ошибка генерации ответа:', error);
+            return 'Извините, произошла ошибка при генерации ответа. Попробуйте позже.';
+        }
+    }
+
+    /**
+     * Анализ текста через Gemini
+     */
+    async analyzeText(text, analysisType = 'general') {
+        try {
+            if (!this.geminiService || !this.geminiService.isReady()) {
+                throw new Error('Gemini AI не настроен');
+            }
+
+            return await this.geminiService.analyzeText(text, analysisType);
+
+        } catch (error) {
+            console.error('❌ Ошибка анализа текста:', error);
+            throw error;
+        }
+    }
+
+    /**
+     * Генерация ответа на email
+     */
+    async generateEmailResponse(emailContent, tone = 'professional') {
+        try {
+            if (!this.geminiService || !this.geminiService.isReady()) {
+                throw new Error('Gemini AI не настроен');
+            }
+
+            return await this.geminiService.generateEmailResponse(emailContent, tone);
+
+        } catch (error) {
+            console.error('❌ Ошибка генерации ответа на email:', error);
+            throw error;
+        }
+    }
+
+    /**
+     * Планирование задач
+     */
+    async planTasks(description, deadline = null, priority = 'medium') {
+        try {
+            if (!this.geminiService || !this.geminiService.isReady()) {
+                throw new Error('Gemini AI не настроен');
+            }
+
+            return await this.geminiService.planTasks(description, deadline, priority);
+
+        } catch (error) {
+            console.error('❌ Ошибка планирования задач:', error);
+            throw error;
+        }
+    }
+
+    /**
+     * Анализ контактов
+     */
+    async analyzeContacts(contactInfo, searchQuery = null) {
+        try {
+            if (!this.geminiService || !this.geminiService.isReady()) {
+                throw new Error('Gemini AI не настроен');
+            }
+
+            return await this.geminiService.analyzeContacts(contactInfo, searchQuery);
+
+        } catch (error) {
+            console.error('❌ Ошибка анализа контактов:', error);
+            throw error;
+        }
+    }
+
+    /**
+     * Анализ изображения
+     */
+    async analyzeImage(imageData, prompt = 'Опиши это изображение') {
+        try {
+            if (!this.geminiService || !this.geminiService.isReady()) {
+                throw new Error('Gemini AI не настроен');
+            }
+
+            return await this.geminiService.analyzeImage(imageData, prompt);
+
+        } catch (error) {
+            console.error('❌ Ошибка анализа изображения:', error);
+            throw error;
+        }
     }
 
     /**
@@ -281,7 +572,10 @@ export class ChatService {
             totalAIMessages,
             averageMessagesPerConversation: totalConversations > 0 ? totalMessages / totalConversations : 0,
             lastActivity: this.conversationHistory.length > 0 ? 
-                this.conversationHistory[this.conversationHistory.length - 1].timestamp : null
+                this.conversationHistory[this.conversationHistory.length - 1].timestamp : null,
+            geminiService: this.geminiService ? this.geminiService.isReady() : false,
+            calendarService: this.calendarService ? this.calendarService.isReady() : false,
+            gmailService: this.gmailService ? this.gmailService.isReady() : false
         };
     }
 
@@ -339,29 +633,6 @@ export class ChatService {
     }
 
     /**
-     * Задержка (для имитации)
-     */
-    delay(ms) {
-        return new Promise(resolve => setTimeout(resolve, ms));
-    }
-
-    /**
-     * Показать индикатор печати
-     */
-    showTypingIndicator() {
-        // Этот метод будет вызываться из UIManager
-        // Здесь можно добавить логику для управления состоянием
-    }
-
-    /**
-     * Скрыть индикатор печати
-     */
-    hideTypingIndicator() {
-        // Этот метод будет вызываться из UIManager
-        // Здесь можно добавить логику для управления состоянием
-    }
-
-    /**
      * Проверка готовности сервиса
      */
     isReady() {
@@ -373,5 +644,26 @@ export class ChatService {
      */
     getCurrentConversationId() {
         return this.currentConversationId;
+    }
+
+    /**
+     * Получение Gemini сервиса
+     */
+    getGeminiService() {
+        return this.geminiService;
+    }
+
+    /**
+     * Получение Calendar сервиса
+     */
+    getCalendarService() {
+        return this.calendarService;
+    }
+
+    /**
+     * Получение Gmail сервиса
+     */
+    getGmailService() {
+        return this.gmailService;
     }
 } 
