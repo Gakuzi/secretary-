@@ -59,9 +59,9 @@ export class ChatService {
      * Отправка сообщения
      */
     async sendMessage(message, options = {}) {
-        if (!this.isInitialized) {
-            throw new Error('ChatService не инициализирован');
-        }
+            if (!this.isInitialized) {
+                throw new Error('ChatService не инициализирован');
+            }
 
         try {
             // Создаем объект сообщения пользователя
@@ -614,7 +614,7 @@ export class ChatService {
             }
         } catch (error) {
             console.warn('⚠️ Не удалось загрузить историю чата:', error);
-            this.conversationHistory = [];
+        this.conversationHistory = [];
         }
     }
 

@@ -1,25 +1,19 @@
 /**
- * AuthService - Сервис аутентификации и управления пользователями
+ * AuthService - Сервис аутентификации через Firebase
  */
+import { FirebaseService } from './FirebaseService.js';
+
 export class AuthService {
     constructor() {
         this.isInitialized = false;
         this.currentUser = null;
         this.accessToken = null;
-        this.refreshToken = null;
-        this.tokenExpiry = null;
+        this.firebaseService = null;
         
-        // Google OAuth конфигурация
+        // Google API конфигурация для дополнительных сервисов
         this.googleConfig = {
-            clientId: this.getClientId(),
-            scope: [
-                'https://www.googleapis.com/auth/userinfo.profile',
-                'https://www.googleapis.com/auth/userinfo.email',
-                'https://www.googleapis.com/auth/calendar',
-                'https://www.googleapis.com/auth/gmail.readonly',
-                'https://www.googleapis.com/auth/gmail.send',
-                'https://www.googleapis.com/auth/contacts.readonly'
-            ].join(' ')
+            apiKey: this.getGoogleApiKey(),
+            clientId: this.getGoogleClientId()
         };
     }
 
@@ -28,11 +22,12 @@ export class AuthService {
      */
     async init() {
         try {
-            // Загружаем Google Identity Services
-            await this.loadGoogleIdentityServices();
+            // Инициализируем Firebase
+            this.firebaseService = new FirebaseService();
+            await this.firebaseService.init();
             
-            // Проверяем сохраненную сессию
-            await this.checkSavedSession();
+            // Проверяем статус аутентификации
+            await this.checkAuthState();
             
             this.isInitialized = true;
             console.log('✅ AuthService инициализирован');
@@ -44,113 +39,61 @@ export class AuthService {
     }
 
     /**
-     * Загрузка Google Identity Services
+     * Получение Google API ключа
      */
-    loadGoogleIdentityServices() {
-        return new Promise((resolve, reject) => {
-            if (window.google && window.google.accounts) {
-                resolve();
-                return;
-            }
-
-            const script = document.createElement('script');
-            script.src = 'https://accounts.google.com/gsi/client';
-            script.async = true;
-            script.defer = true;
-            script.onload = () => resolve();
-            script.onerror = reject;
-            document.head.appendChild(script);
-        });
+    getGoogleApiKey() {
+        return localStorage.getItem('google-api-key') || '';
     }
 
     /**
-     * Получение Client ID из конфигурации
+     * Получение Google Client ID
      */
-    getClientId() {
+    getGoogleClientId() {
         return localStorage.getItem('google-client-id') || '';
     }
 
     /**
-     * Проверка сохраненной сессии
+     * Проверка состояния аутентификации
      */
-    async checkSavedSession() {
+    async checkAuthState() {
         try {
-            const savedUser = localStorage.getItem('secretary-plus-user');
-            const savedToken = localStorage.getItem('secretary-plus-token');
-            const savedExpiry = localStorage.getItem('secretary-plus-token-expiry');
-
-            if (savedUser && savedToken && savedExpiry) {
-                const expiry = new Date(savedExpiry);
-                if (expiry > new Date()) {
-                    this.currentUser = JSON.parse(savedUser);
-                    this.accessToken = savedToken;
-                    this.tokenExpiry = expiry;
-                    console.log('✅ Восстановлена сохраненная сессия');
-                    return true;
-                } else {
-                    // Токен истек, очищаем
-                    this.clearSavedSession();
-                }
+            if (this.firebaseService && this.firebaseService.isAuthenticated()) {
+                this.currentUser = this.firebaseService.getCurrentUser();
+                this.accessToken = await this.firebaseService.getGoogleAccessToken();
+                
+                console.log('✅ Пользователь аутентифицирован через Firebase');
+                return true;
             }
             return false;
         } catch (error) {
-            console.warn('⚠️ Ошибка восстановления сессии:', error);
-            this.clearSavedSession();
+            console.warn('⚠️ Ошибка проверки состояния аутентификации:', error);
             return false;
         }
     }
 
     /**
-     * Очистка сохраненной сессии
-     */
-    clearSavedSession() {
-        localStorage.removeItem('secretary-plus-user');
-        localStorage.removeItem('secretary-plus-token');
-        localStorage.removeItem('secretary-plus-token-expiry');
-    }
-
-    /**
-     * Google OAuth аутентификация
+     * Google аутентификация через Firebase
      */
     async authenticateWithGoogle() {
         try {
-            if (!window.google || !window.google.accounts) {
-                throw new Error('Google Identity Services не загружены');
+            if (!this.firebaseService) {
+                throw new Error('FirebaseService не инициализирован');
             }
 
-            return new Promise((resolve, reject) => {
-                const client = window.google.accounts.oauth2.initTokenClient({
-                    client_id: this.googleConfig.clientId,
-                    scope: this.googleConfig.scope,
-                    callback: async (response) => {
-                        try {
-                            if (response.error) {
-                                reject(new Error(response.error));
-                                return;
-                            }
-
-                            this.accessToken = response.access_token;
-                            this.tokenExpiry = new Date(Date.now() + response.expires_in * 1000);
-
-                            // Получаем информацию о пользователе
-                            const userInfo = await this.getGoogleUserInfo();
-                            this.currentUser = userInfo;
-
-                            // Сохраняем сессию
-                            this.saveSession();
-
-                            console.log('✅ Пользователь аутентифицирован:', userInfo.email);
-                            resolve(userInfo);
-
-                        } catch (error) {
-                            reject(error);
-                        }
-                    }
-                });
-
-                client.requestAccessToken();
-            });
-
+            // Выполняем аутентификацию через Firebase
+            const user = await this.firebaseService.signInWithGoogle();
+            
+            if (user) {
+                this.currentUser = user;
+                this.accessToken = await this.firebaseService.getGoogleAccessToken();
+                
+                // Сохраняем информацию о пользователе
+                await this.saveUserProfile(user);
+                
+                console.log('✅ Пользователь аутентифицирован:', user.email);
+                return user;
+            }
+            
         } catch (error) {
             console.error('❌ Ошибка Google аутентификации:', error);
             throw error;
@@ -158,50 +101,29 @@ export class AuthService {
     }
 
     /**
-     * Получение информации о пользователе Google
+     * Сохранение профиля пользователя
      */
-    async getGoogleUserInfo() {
+    async saveUserProfile(user) {
         try {
-            const response = await fetch('https://www.googleapis.com/oauth2/v2/userinfo', {
-                headers: {
-                    'Authorization': `Bearer ${this.accessToken}`
+            const userProfile = {
+                uid: user.uid,
+                email: user.email,
+                displayName: user.displayName,
+                photoURL: user.photoURL,
+                createdAt: new Date(),
+                lastLogin: new Date(),
+                provider: 'google',
+                settings: {
+                    theme: 'dark',
+                    language: 'ru',
+                    notifications: true
                 }
-            });
-
-            if (!response.ok) {
-                throw new Error('Ошибка получения информации о пользователе');
-            }
-
-            const userInfo = await response.json();
-            
-            return {
-                id: userInfo.id,
-                email: userInfo.email,
-                name: userInfo.name,
-                givenName: userInfo.given_name,
-                familyName: userInfo.family_name,
-                picture: userInfo.picture,
-                locale: userInfo.locale,
-                verifiedEmail: userInfo.verified_email,
-                provider: 'google'
             };
 
+            await this.firebaseService.saveUserData(userProfile);
+            
         } catch (error) {
-            console.error('❌ Ошибка получения информации о пользователе:', error);
-            throw error;
-        }
-    }
-
-    /**
-     * Сохранение сессии
-     */
-    saveSession() {
-        try {
-            localStorage.setItem('secretary-plus-user', JSON.stringify(this.currentUser));
-            localStorage.setItem('secretary-plus-token', this.accessToken);
-            localStorage.setItem('secretary-plus-token-expiry', this.tokenExpiry.toISOString());
-        } catch (error) {
-            console.warn('⚠️ Не удалось сохранить сессию:', error);
+            console.warn('⚠️ Не удалось сохранить профиль пользователя:', error);
         }
     }
 
@@ -210,106 +132,20 @@ export class AuthService {
      */
     async signOut() {
         try {
-            // Очищаем локальные данные
+            if (this.firebaseService) {
+                await this.firebaseService.signOut();
+            }
+            
             this.currentUser = null;
             this.accessToken = null;
-            this.tokenExpiry = null;
-            this.clearSavedSession();
-
-            // Отзываем Google токен
-            if (this.accessToken) {
-                try {
-                    await fetch(`https://oauth2.googleapis.com/revoke?token=${this.accessToken}`, {
-                        method: 'POST'
-                    });
-                } catch (error) {
-                    console.warn('⚠️ Не удалось отозвать Google токен:', error);
-                }
-            }
-
+            
             console.log('✅ Пользователь вышел из системы');
             return true;
-
+            
         } catch (error) {
             console.error('❌ Ошибка выхода:', error);
             throw error;
         }
-    }
-
-    /**
-     * Обновление токена
-     */
-    async refreshAccessToken() {
-        try {
-            if (!this.refreshToken) {
-                throw new Error('Refresh token не доступен');
-            }
-
-            const response = await fetch('https://oauth2.googleapis.com/token', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/x-www-form-urlencoded'
-                },
-                body: new URLSearchParams({
-                    client_id: this.googleConfig.clientId,
-                    client_secret: '', // Для веб-приложений не требуется
-                    refresh_token: this.refreshToken,
-                    grant_type: 'refresh_token'
-                })
-            });
-
-            if (!response.ok) {
-                throw new Error('Ошибка обновления токена');
-            }
-
-            const tokenData = await response.json();
-            this.accessToken = tokenData.access_token;
-            this.tokenExpiry = new Date(Date.now() + tokenData.expires_in * 1000);
-
-            // Сохраняем обновленную сессию
-            this.saveSession();
-
-            console.log('✅ Токен обновлен');
-            return true;
-
-        } catch (error) {
-            console.error('❌ Ошибка обновления токена:', error);
-            // При ошибке обновления токена выходим из системы
-            await this.signOut();
-            throw error;
-        }
-    }
-
-    /**
-     * Проверка срока действия токена
-     */
-    isTokenValid() {
-        if (!this.accessToken || !this.tokenExpiry) {
-            return false;
-        }
-
-        // Проверяем, не истек ли токен (с запасом в 5 минут)
-        const now = new Date();
-        const expiryWithBuffer = new Date(this.tokenExpiry.getTime() - 5 * 60 * 1000);
-        
-        return now < expiryWithBuffer;
-    }
-
-    /**
-     * Получение валидного токена
-     */
-    async getValidToken() {
-        if (!this.isTokenValid()) {
-            await this.refreshAccessToken();
-        }
-        return this.accessToken;
-    }
-
-    /**
-     * Проверка аутентификации
-     */
-    isAuthenticated() {
-        return !!this.currentUser && this.isTokenValid();
     }
 
     /**
@@ -327,6 +163,13 @@ export class AuthService {
     }
 
     /**
+     * Проверка аутентификации
+     */
+    isAuthenticated() {
+        return !!this.currentUser && !!this.accessToken;
+    }
+
+    /**
      * Обновление профиля пользователя
      */
     async updateUserProfile(updates) {
@@ -335,12 +178,17 @@ export class AuthService {
                 throw new Error('Пользователь не аутентифицирован');
             }
 
+            const userData = await this.firebaseService.getUserData() || {};
+            const updatedProfile = { ...userData, ...updates };
+            
+            await this.firebaseService.saveUserData(updatedProfile);
+            
+            // Обновляем локальный объект пользователя
             this.currentUser = { ...this.currentUser, ...updates };
-            this.saveSession();
-
+            
             console.log('✅ Профиль пользователя обновлен');
-            return this.currentUser;
-
+            return updatedProfile;
+            
         } catch (error) {
             console.error('❌ Ошибка обновления профиля:', error);
             throw error;
@@ -358,7 +206,11 @@ export class AuthService {
         const permissions = ['basic'];
         
         if (this.accessToken) {
-            permissions.push('calendar', 'gmail', 'contacts');
+            permissions.push('calendar', 'gmail', 'contacts', 'files');
+        }
+        
+        if (this.firebaseService && this.firebaseService.isReady()) {
+            permissions.push('database', 'storage');
         }
 
         return permissions;
@@ -374,23 +226,41 @@ export class AuthService {
     /**
      * Получение статистики аутентификации
      */
-    getAuthStats() {
-        return {
-            isAuthenticated: this.isAuthenticated(),
-            isTokenValid: this.isTokenValid(),
-            userEmail: this.currentUser?.email || null,
-            tokenExpiry: this.tokenExpiry,
-            permissions: this.getUserPermissions(),
-            lastActivity: localStorage.getItem('secretary-plus-last-activity')
-        };
+    async getAuthStats() {
+        try {
+            const firebaseStats = await this.firebaseService.getStatistics();
+            
+            return {
+                isAuthenticated: this.isAuthenticated(),
+                isTokenValid: !!this.accessToken,
+                userEmail: this.currentUser?.email || null,
+                userUid: this.currentUser?.uid || null,
+                permissions: this.getUserPermissions(),
+                lastActivity: firebaseStats?.lastActivity || null,
+                totalChats: firebaseStats?.totalChats || 0,
+                totalMessages: firebaseStats?.totalMessages || 0,
+                firebaseReady: this.firebaseService?.isReady() || false
+            };
+        } catch (error) {
+            console.error('❌ Ошибка получения статистики аутентификации:', error);
+            return {
+                isAuthenticated: this.isAuthenticated(),
+                isTokenValid: !!this.accessToken,
+                userEmail: this.currentUser?.email || null,
+                permissions: this.getUserPermissions(),
+                firebaseReady: this.firebaseService?.isReady() || false
+            };
+        }
     }
 
     /**
      * Обновление времени последней активности
      */
-    updateLastActivity() {
+    async updateLastActivity() {
         try {
-            localStorage.setItem('secretary-plus-last-activity', new Date().toISOString());
+            if (this.currentUser) {
+                await this.updateUserProfile({ lastActivity: new Date() });
+            }
         } catch (error) {
             console.warn('⚠️ Не удалось обновить время активности:', error);
         }
@@ -400,20 +270,50 @@ export class AuthService {
      * Проверка готовности сервиса
      */
     isReady() {
-        return this.isInitialized;
+        return this.isInitialized && !!this.firebaseService;
     }
 
     /**
-     * Настройка Google OAuth
+     * Настройка Google API
      */
-    configureGoogleOAuth(clientId) {
+    configureGoogleAPI(apiKey, clientId) {
+        let updated = false;
+        
+        if (apiKey) {
+            localStorage.setItem('google-api-key', apiKey);
+            this.googleConfig.apiKey = apiKey;
+            updated = true;
+        }
+        
         if (clientId) {
             localStorage.setItem('google-client-id', clientId);
             this.googleConfig.clientId = clientId;
-            console.log('✅ Google OAuth настроен');
-            return true;
+            updated = true;
         }
-        return false;
+        
+        if (updated) {
+            console.log('✅ Google API настроен');
+        }
+        
+        return updated;
+    }
+
+    /**
+     * Настройка Firebase
+     */
+    async configureFirebase(config) {
+        try {
+            if (this.firebaseService) {
+                this.firebaseService.configureFirebase(config);
+                await this.firebaseService.init();
+                console.log('✅ Firebase переконфигурирован');
+                return true;
+            }
+            return false;
+        } catch (error) {
+            console.error('❌ Ошибка настройки Firebase:', error);
+            return false;
+        }
     }
 
     /**
@@ -421,9 +321,30 @@ export class AuthService {
      */
     getOAuthConfig() {
         return {
+            apiKey: this.googleConfig.apiKey,
             clientId: this.googleConfig.clientId,
-            scope: this.googleConfig.scope,
-            isConfigured: !!this.googleConfig.clientId
+            isConfigured: !!(this.googleConfig.apiKey && this.googleConfig.clientId)
         };
+    }
+
+    /**
+     * Получение Firebase сервиса
+     */
+    getFirebaseService() {
+        return this.firebaseService;
+    }
+
+    /**
+     * Проверка состояния всех сервисов
+     */
+    async checkServicesHealth() {
+        const health = {
+            auth: this.isReady(),
+            firebase: this.firebaseService?.isReady() || false,
+            google: !!(this.googleConfig.apiKey && this.googleConfig.clientId),
+            user: !!this.currentUser
+        };
+        
+        return health;
     }
 } 

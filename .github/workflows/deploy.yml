@@ -1,4 +1,4 @@
-name: 🚀 Автоматическое развертывание на Vercel
+name: Deploy to Vercel
 
 on:
   push:
@@ -6,35 +6,81 @@ on:
   pull_request:
     branches: [ main ]
 
+env:
+  VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+  VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+  VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+
 jobs:
   deploy:
     runs-on: ubuntu-latest
     
     steps:
-    - name: 📥 Клонирование репозитория
+    - name: Checkout code
       uses: actions/checkout@v4
       
-    - name: 📦 Установка Node.js
+    - name: Setup Node.js
       uses: actions/setup-node@v4
       with:
         node-version: '18'
         cache: 'npm'
         
-    - name: 🔧 Установка зависимостей
+    - name: Install dependencies
       run: npm ci
       
-    - name: 🧪 Запуск тестов (если есть)
+    - name: Run tests
       run: npm test || echo "Тесты не настроены"
       
-    - name: 🚀 Развертывание на Vercel
+    - name: Verify Vercel configuration
+      run: |
+        echo "🔍 Проверка конфигурации Vercel..."
+        echo "Organization ID: $VERCEL_ORG_ID"
+        echo "Project ID: $VERCEL_PROJECT_ID"
+        echo "Token: ${VERCEL_TOKEN:0:10}..."
+        
+        if [ -z "$VERCEL_TOKEN" ]; then
+          echo "❌ VERCEL_TOKEN не настроен"
+          exit 1
+        fi
+        
+        if [ -z "$VERCEL_ORG_ID" ]; then
+          echo "❌ VERCEL_ORG_ID не настроен"
+          exit 1
+        fi
+        
+        if [ -z "$VERCEL_PROJECT_ID" ]; then
+          echo "❌ VERCEL_PROJECT_ID не настроен"
+          exit 1
+        fi
+        
+        echo "✅ Конфигурация Vercel корректна"
+      
+    - name: Deploy to Vercel
+      id: deploy
       uses: amondnet/vercel-action@v25
       with:
         vercel-token: ${{ secrets.VERCEL_TOKEN }}
         vercel-org-id: ${{ secrets.VERCEL_ORG_ID }}
         vercel-project-id: ${{ secrets.VERCEL_PROJECT_ID }}
         vercel-args: '--prod'
-        
-    - name: ✅ Уведомление о завершении
+        github-comment: true
+        github-deployment: false
+        working-directory: ./
+      continue-on-error: true
+      
+    - name: Check deployment status
+      if: steps.deploy.outcome == 'failure'
       run: |
-        echo "🚀 Развертывание завершено!"
-        echo "🌐 Приложение доступно на Vercel" 
+        echo "❌ Развертывание на Vercel не удалось"
+        echo "Проверьте настройки GitHub Secrets:"
+        echo "- VERCEL_TOKEN"
+        echo "- VERCEL_ORG_ID" 
+        echo "- VERCEL_PROJECT_ID"
+        echo ""
+        echo "Инструкция по настройке: VERCEL_TOKEN_SETUP.md"
+        
+    - name: Success notification
+      if: steps.deploy.outcome == 'success'
+      run: |
+        echo "✅ Развертывание на Vercel успешно завершено!"
+        echo "🌐 Приложение доступно по ссылке выше" 

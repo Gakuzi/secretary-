@@ -94,7 +94,7 @@ export class UIManager {
         if (this.elements.newChatBtn) {
             this.elements.newChatBtn.addEventListener('click', () => this.handleNewChat());
         }
-
+        
         // Кнопка камеры
         if (this.elements.cameraBtn) {
             this.elements.cameraBtn.addEventListener('click', () => this.handleCamera());
@@ -114,7 +114,7 @@ export class UIManager {
         if (this.elements.logoutBtn) {
             this.elements.logoutBtn.addEventListener('click', () => this.handleLogout());
         }
-
+        
         // Поле ввода сообщения
         if (this.elements.messageInput) {
             this.elements.messageInput.addEventListener('input', (e) => this.handleMessageInput(e));
