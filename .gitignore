@@ -67,3 +67,4 @@ downloads/
 
 # Локальные настройки
 .local/ 
+.vercel
