@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Секретарь+ - Интеллектуальный веб-ассистент</title>
+    <meta name="description" content="Интеллектуальный веб-ассистент для управления цифровой продуктивностью">
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Google Identity Services -->
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
+    
+    <!-- PDF.js для работы с PDF файлами -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+    
+    <!-- Пользовательские стили -->
+    <link rel="stylesheet" href="style.css">
+    
+    <!-- Favicon -->
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🤖</text></svg>">
+</head>
+<body class="bg-gray-50 dark:bg-gray-900 transition-colors duration-200">
+    <!-- Загрузочный экран -->
+    <div id="loading-screen" class="fixed inset-0 bg-white dark:bg-gray-900 flex items-center justify-center z-50">
+        <div class="text-center">
+            <div class="animate-spin rounded-full h-16 w-16 border-b-2 border-blue-600 mx-auto mb-4"></div>
+            <h2 class="text-xl font-semibold text-gray-700 dark:text-gray-300">Загрузка Секретарь+</h2>
+            <p class="text-gray-500 dark:text-gray-400 mt-2">Инициализация приложения...</p>
+        </div>
+    </div>
+
+    <!-- Экран аутентификации -->
+    <div id="auth-screen" class="hidden fixed inset-0 bg-white dark:bg-gray-900 flex items-center justify-center z-40">
+        <div class="max-w-md w-full mx-4">
+            <div class="text-center mb-8">
+                <h1 class="text-3xl font-bold text-gray-900 dark:text-white mb-2">Секретарь+</h1>
+                <p class="text-gray-600 dark:text-gray-400">Интеллектуальный веб-ассистент для управления вашей продуктивностью</p>
+            </div>
+            
+            <div class="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6">
+                <div class="text-center mb-6">
+                    <div class="text-4xl mb-4">🤖</div>
+                    <h2 class="text-xl font-semibold text-gray-900 dark:text-white mb-2">Войти в систему</h2>
+                    <p class="text-gray-600 dark:text-gray-400">Используйте свой Google аккаунт для входа</p>
+                </div>
+                
+                <div id="google-signin-button" class="w-full"></div>
+                
+                <div class="mt-6 text-center">
+                    <p class="text-sm text-gray-500 dark:text-gray-400">
+                        Входя в систему, вы соглашаетесь с нашими 
+                        <a href="#" class="text-blue-600 hover:text-blue-500">Условиями использования</a>
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Основной интерфейс приложения -->
+    <div id="app" class="hidden h-screen flex flex-col">
+        <!-- Верхняя панель -->
+        <header class="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-4 py-3">
+            <div class="flex items-center justify-between">
+                <div class="flex items-center space-x-3">
+                    <button id="new-chat-btn" class="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
+                        <svg class="w-5 h-5 text-gray-600 dark:text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
+                        </svg>
+                    </button>
+                    <h1 class="text-lg font-semibold text-gray-900 dark:text-white">Секретарь+</h1>
+                </div>
+                
+                <div class="flex items-center space-x-2">
+                    <!-- Кнопка камеры -->
+                    <button id="camera-btn" class="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
+                        <svg class="w-5 h-5 text-gray-600 dark:text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"></path>
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                        </svg>
+                    </button>
+                    
+                    <!-- Кнопка прикрепления файла -->
+                    <button id="attach-file-btn" class="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
+                        <svg class="w-5 h-5 text-gray-600 dark:text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"></path>
+                        </svg>
+                    </button>
+                    
+                    <!-- Кнопка настроек -->
+                    <button id="settings-btn" class="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
+                        <svg class="w-5 h-5 text-gray-600 dark:text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path>
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                        </svg>
+                    </button>
+                    
+                    <!-- Кнопка выхода -->
+                    <button id="logout-btn" class="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
+                        <svg class="w-5 h-5 text-gray-600 dark:text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"></path>
+                        </svg>
+                    </button>
+                </div>
+            </div>
+        </header>
+
+        <!-- Основная область чата -->
+        <main class="flex-1 overflow-hidden">
+            <div id="chat-container" class="h-full overflow-y-auto px-4 py-6 space-y-4">
+                <!-- Сообщения будут добавляться здесь -->
+            </div>
+        </main>
+
+        <!-- Панель ввода -->
+        <footer class="bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 p-4">
+            <div class="max-w-4xl mx-auto">
+                <!-- Индикатор загрузки -->
+                <div id="thinking-indicator" class="hidden mb-4 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
+                    <div class="flex items-center space-x-2">
+                        <div class="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
+                        <span class="text-blue-600 dark:text-blue-400 text-sm">Думаю...</span>
+                    </div>
+                </div>
+
+                <!-- Поле ввода -->
+                <div class="flex items-end space-x-3">
+                    <div class="flex-1 relative">
+                        <textarea 
+                            id="message-input" 
+                            class="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg resize-none bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
+                            placeholder="Введите ваш запрос..."
+                            rows="1"
+                            maxlength="4000"
+                        ></textarea>
+                        
+                        <!-- Счетчик символов -->
+                        <div class="absolute bottom-2 right-2 text-xs text-gray-400">
+                            <span id="char-count">0</span>/4000
+                        </div>
+                    </div>
+                    
+                    <!-- Кнопки ввода -->
+                    <div class="flex space-x-2">
+                        <!-- Кнопка голосового ввода -->
+                        <button id="voice-btn" class="p-3 rounded-lg bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors">
+                            <svg class="w-5 h-5 text-gray-600 dark:text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"></path>
+                            </svg>
+                        </button>
+                        
+                        <!-- Кнопка отправки -->
+                        <button id="send-btn" class="hidden p-3 rounded-lg bg-blue-600 hover:bg-blue-700 text-white transition-colors">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"></path>
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Контекстные действия -->
+                <div id="context-actions" class="hidden mt-4 flex flex-wrap gap-2">
+                    <!-- Кнопки действий будут добавляться здесь -->
+                </div>
+            </div>
+        </footer>
+    </div>
+
+    <!-- Скрытые элементы -->
+    <input type="file" id="file-input" accept="image/*,.pdf" class="hidden">
+    <video id="camera-preview" class="hidden" autoplay muted></video>
+    <canvas id="camera-canvas" class="hidden"></canvas>
+
+    <!-- Модальные окна -->
+    <div id="modal-overlay" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50"></div>
+    
+    <!-- Модальное окно настроек -->
+    <div id="settings-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4">
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full max-h-[90vh] overflow-y-auto">
+            <!-- Содержимое модального окна будет добавляться динамически -->
+        </div>
+    </div>
+
+    <!-- Модальное окно центра управления -->
+    <div id="admin-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4">
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+            <!-- Содержимое модального окна будет добавляться динамически -->
+        </div>
+    </div>
+
+    <!-- Скрипты -->
+    <script type="module" src="index.js"></script>
+</body>
+</html> 

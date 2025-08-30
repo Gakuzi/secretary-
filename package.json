@@ -5,9 +5,9 @@
   "main": "index.js",
   "type": "module",
   "scripts": {
-    "start": "npx http-server -p 3000 -c-1",
-    "dev": "npx http-server -p 3000 -c-1 --cors",
-    "build": "echo 'No build step required for vanilla JS'",
+    "start": "npx http-server public -p 3000 -c-1",
+    "dev": "npx http-server public -p 3000 -c-1 --cors",
+    "build": "echo 'Static files ready in public directory'",
     "test": "echo 'No tests specified'",
     "lint": "echo 'No linter configured'",
     "format": "echo 'No formatter configured'",
