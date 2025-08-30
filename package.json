@@ -11,7 +11,9 @@
     "test": "echo 'No tests specified'",
     "lint": "echo 'No linter configured'",
     "format": "echo 'No formatter configured'",
-    "deploy": "echo 'Deploy to your preferred hosting service'"
+    "deploy:vercel": "vercel --prod",
+    "deploy:netlify": "netlify deploy --prod",
+    "deploy": "echo 'Choose: npm run deploy:vercel or npm run deploy:netlify'"
   },
   "keywords": [
     "ai",

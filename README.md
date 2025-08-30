@@ -1,5 +1,11 @@
 # Секретарь+ 🤖
 
+[![GitHub license](https://img.shields.io/badge/license-MIT-blue.svg)](https://github.com/Gakuzi/secretary-/blob/main/LICENSE)
+[![GitHub stars](https://img.shields.io/badge/github/stars/Gakuzi/secretary-.svg)](https://github.com/Gakuzi/secretary-/stargazers)
+[![GitHub forks](https://img.shields.io/badge/github/forks/Gakuzi/secretary-.svg)](https://github.com/Gakuzi/secretary-/network)
+[![GitHub issues](https://img.shields.io/badge/github/issues/Gakuzi/secretary-.svg)](https://github.com/Gakuzi/secretary-/issues)
+[![GitHub pull requests](https://img.shields.io/badge/github/issues-pr/Gakuzi/secretary-.svg)](https://github.com/Gakuzi/secretary-/pulls)
+
 Интеллектуальный веб-ассистент для управления цифровой продуктивностью с интеграцией Google сервисов и использованием AI модели Gemini.
 
 ## 🚀 Возможности
@@ -71,10 +77,23 @@ npm run dev
 ├── types.js                # Определения типов
 ├── style.css               # Пользовательские стили
 ├── components/             # UI компоненты
+│   ├── UIManager.js
+│   ├── Chat.js
+│   ├── Message.js
+│   └── ...
 ├── services/               # Сервисы
 │   ├── supabase/           # Supabase сервисы
-│   └── google/             # Google сервисы
+│   │   ├── AuthService.js
+│   │   ├── schema.js
+│   │   └── migrations.sql
+│   ├── google/             # Google сервисы
+│   │   └── GoogleServiceProvider.js
+│   └── ChatService.js      # Сервис чата
 └── utils/                  # Утилиты
+    ├── StorageManager.js
+    ├── ThemeManager.js
+    ├── NotificationManager.js
+    └── ...
 ```
 
 ## 🔐 Настройка
@@ -92,13 +111,32 @@ npm run dev
 3. Создайте OAuth 2.0 Client ID
 4. Получите API ключ Gemini
 
+Подробные инструкции см. в [DEPLOYMENT.md](DEPLOYMENT.md)
+
 ## 🚀 Развертывание
 
+### Vercel (Рекомендуется) ⭐
+
+**Лучший выбор для вашего проекта:**
+- ✅ Полностью бесплатный
+- ✅ Автоматический деплой из GitHub
+- ✅ Отличная производительность
+- ✅ Встроенная поддержка Supabase
+
+**Быстрый старт:**
+1. Зайдите на [vercel.com](https://vercel.com)
+2. Войдите через GitHub
+3. Выберите ваш репозиторий `secretary-`
+4. Нажмите "Deploy"
+
+### Другие платформы
+
 Приложение работает на любом статическом хостинге:
-- GitHub Pages
-- Vercel
 - Netlify
 - Firebase Hosting
+- и др.
+
+Подробные инструкции см. в [DEPLOYMENT.md](DEPLOYMENT.md)
 
 ## 🤝 Вклад в проект
 
